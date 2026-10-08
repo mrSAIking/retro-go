@@ -1,5 +1,5 @@
 
-name: Retro-Go ESP32-S3 Firmware Build
+name: Retro-Go ESP32-S3 Complete Firmware
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
 jobs:
   build-firmware:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout Retro-Go
@@ -36,52 +36,207 @@ jobs:
         run: |
           "$HOME/esp-idf/install.sh" esp32s3
 
-      - name: Build Retro-Go launcher and bootloader
+      - name: Build complete Retro-Go firmware
         shell: bash
         run: |
+          set -euo pipefail
+
           source "$HOME/esp-idf/export.sh"
 
           idf.py --version
 
-          echo "Building ESP32-S3 Retro-Go launcher..."
+          echo "Building launcher and retro-core..."
+          echo "Target: ESP32-S3 N16R8"
+          echo "Display: ST7735 160x128"
 
-          python3 rg_tool.py build launcher \
+          python3 rg_tool.py build-img \
+            launcher retro-core \
             --target esp32-s3-devkit
 
-          echo "Building ESP32-S3 bootloader..."
+          echo "Firmware image build finished."
 
-          (
-            cd launcher
-            idf.py bootloader
-          )
-
-          echo "ESP32-S3 launcher and bootloader completed!"
-
-      - name: Verify firmware files
+      - name: Verify and package firmware
         shell: bash
         run: |
-          echo "Checking generated firmware files..."
+          set -euo pipefail
 
-          test -f launcher/build/launcher.bin
-          test -f launcher/build/bootloader/bootloader.bin
-          test -f launcher/build/partition_table/partition-table.bin
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import shutil
+          import struct
 
-          echo "Generated firmware files:"
-          find launcher/build \
-            -type f \
-            \( -name "*.bin" -o -name "flasher_args.json" \) \
-            -print
+          images = list(Path(".").glob("*.img"))
+          assert len(images) == 1, (
+              f"Expected exactly one .img, found {images}"
+          )
 
-          echo "Firmware files verified!"
+          image = images[0]
+          data = image.read_bytes()
 
-      - name: Upload ESP32-S3 firmware
+          assert data[0] == 0xE9, (
+              "Invalid ESP32-S3 bootloader image"
+          )
+
+          assert len(data) <= 16 * 1024 * 1024, (
+              "Firmware image exceeds 16MB flash"
+          )
+
+          sources = {
+              "bootloader.bin":
+                  Path("launcher/build/bootloader/bootloader.bin"),
+              "launcher.bin":
+                  Path("launcher/build/launcher.bin"),
+              "retro-core.bin":
+                  Path("retro-core/build/retro-core.bin"),
+          }
+
+          for name, path in sources.items():
+              assert path.is_file(), f"Missing {name}"
+              assert path.stat().st_size > 0, f"Empty {name}"
+
+          assert sources["bootloader.bin"].stat().st_size <= 0x8000, (
+              "Bootloader overlaps partition table"
+          )
+
+          partitions = []
+          for i in range(95):
+              pos = 0x8000 + i * 32
+
+              if data[pos:pos + 2] != b"\xAA\x50":
+                  break
+
+              magic, ptype, subtype, offset, size, name, flags = (
+                  struct.unpack_from(
+                      "<2sBBII16sI", data, pos
+                  )
+              )
+
+              label = name.split(b"\x00", 1)[0].decode()
+
+              assert offset + size <= len(data), (
+                  f"Partition {label} exceeds image"
+              )
+
+              partitions.append({
+                  "name": label,
+                  "type": ptype,
+                  "subtype": subtype,
+                  "offset": hex(offset),
+                  "size": size,
+              })
+
+          entries = {p["name"]: p for p in partitions}
+
+          required = [
+              "nvs",
+              "otadata",
+              "phy_init",
+              "launcher",
+              "retro-core",
+          ]
+
+          for name in required:
+              assert name in entries, (
+                  f"Missing firmware partition: {name}"
+              )
+
+          for name in ("launcher", "retro-core"):
+              entry = entries[name]
+              offset = int(entry["offset"], 16)
+
+              assert entry["type"] == 0, (
+                  f"{name} is not an app partition"
+              )
+
+              assert data[offset] == 0xE9, (
+                  f"{name} has an invalid app image"
+              )
+
+              assert (
+                  sources[name + ".bin"].stat().st_size
+                  <= entry["size"]
+              ), f"{name} does not fit its partition"
+
+          out = Path("firmware")
+          out.mkdir(exist_ok=True)
+
+          shutil.copy2(image, out / image.name)
+
+          for name, source in sources.items():
+              shutil.copy2(source, out / name)
+
+          # Extract the REAL partition table from the
+          # complete firmware image, not the dummy table.
+          (out / "partition-table.bin").write_bytes(
+              data[0x8000:0x9000]
+          )
+
+          manifest = {
+              "chip": "esp32s3",
+              "flash_size": "16MB",
+              "target": "esp32-s3-devkit",
+              "full_image": image.name,
+              "flash_offset": "0x0",
+              "sha256": hashlib.sha256(data).hexdigest(),
+              "partitions": partitions,
+          }
+
+          (out / "firmware-info.json").write_text(
+              json.dumps(manifest, indent=2)
+          )
+
+          instructions = f"""RETRO-GO ESP32-S3 N16R8
+
+          Complete firmware: {image.name}
+
+          Flash ONLY the complete .img file at address 0x0.
+
+          The .img includes:
+          - ESP32-S3 bootloader
+          - Actual partition table
+          - Launcher
+          - Retro-core (including GBC emulation)
+
+          Other .bin files are included for inspection.
+
+          Do not flash individual files using the
+          dummy partition table from an app build.
+
+          Example:
+          esptool.py --chip esp32s3 write_flash \
+            --flash_size detect 0x0 {image.name}
+
+          ROM files are not included.
+          A microSD card is required for game ROMs.
+          """
+          (out / "FLASH_README.txt").write_text(
+              "\n".join(
+                  line.strip()
+                  for line in instructions.splitlines()
+              ) + "\n"
+          )
+
+          print("SUCCESS: firmware package verified")
+          print("Complete image:", image.name)
+          print("Image size:", len(data), "bytes")
+          print("Partitions:")
+          for p in partitions:
+              print(
+                  p["name"],
+                  p["offset"],
+                  p["size"],
+              )
+          print("Files:")
+          for path in sorted(out.iterdir()):
+              print(" ", path)
+          PY
+
+      - name: Upload complete ESP32-S3 firmware
         uses: actions/upload-artifact@v4
         with:
-          name: retro-go-esp32s3-launcher
-          path: |
-            launcher/build/*.bin
-            launcher/build/bootloader/*.bin
-            launcher/build/partition_table/*.bin
-            launcher/build/flasher_args.json
+          name: retro-go-esp32s3-complete
+          path: firmware/
           if-no-files-found: error
           retention-days: 30
