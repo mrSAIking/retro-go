@@ -36,17 +36,26 @@ jobs:
         run: |
           "$HOME/esp-idf/install.sh" esp32s3
 
-      - name: Build Retro-Go launcher
+      - name: Build Retro-Go launcher and bootloader
         shell: bash
         run: |
           source "$HOME/esp-idf/export.sh"
 
           idf.py --version
 
+          echo "Building ESP32-S3 Retro-Go launcher..."
+
           python3 rg_tool.py build launcher \
             --target esp32-s3-devkit
 
-          echo "ESP32-S3 Retro-Go launcher build completed!"
+          echo "Building ESP32-S3 bootloader..."
+
+          (
+            cd launcher
+            idf.py bootloader
+          )
+
+          echo "ESP32-S3 launcher and bootloader completed!"
 
       - name: Verify firmware files
         shell: bash
@@ -54,7 +63,10 @@ jobs:
           echo "Checking generated firmware files..."
 
           test -f launcher/build/launcher.bin
+          test -f launcher/build/bootloader/bootloader.bin
+          test -f launcher/build/partition_table/partition-table.bin
 
+          echo "Generated firmware files:"
           find launcher/build \
             -type f \
             \( -name "*.bin" -o -name "flasher_args.json" \) \
