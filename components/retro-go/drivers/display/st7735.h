@@ -415,8 +415,8 @@ static void lcd_init(void)
     ILI9341_CMD(0x13);
     rg_usleep(10000);
 
-    // Display inversion OFF
-    ILI9341_CMD(0x20);
+
+    ILI9341_CMD(0x21); // Display inversion ON
 
     // Display ON
     ILI9341_CMD(0x29);
