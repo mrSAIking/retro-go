@@ -1,11 +1,11 @@
 
-name: Retro-Go ESP32-S3 Environment Check
+name: Retro-Go ESP32-S3 Firmware Build
 
 on:
   workflow_dispatch:
 
 jobs:
-  environment-check:
+  build-firmware:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -36,10 +36,40 @@ jobs:
         run: |
           "$HOME/esp-idf/install.sh" esp32s3
 
-      - name: Verify environment
+      - name: Build Retro-Go launcher
         shell: bash
         run: |
           source "$HOME/esp-idf/export.sh"
+
           idf.py --version
-          python3 rg_tool.py build launcher --target esp32-s3-devkit
+
+          python3 rg_tool.py build launcher \
+            --target esp32-s3-devkit
+
           echo "ESP32-S3 Retro-Go launcher build completed!"
+
+      - name: Verify firmware files
+        shell: bash
+        run: |
+          echo "Checking generated firmware files..."
+
+          test -f launcher/build/launcher.bin
+
+          find launcher/build \
+            -type f \
+            \( -name "*.bin" -o -name "flasher_args.json" \) \
+            -print
+
+          echo "Firmware files verified!"
+
+      - name: Upload ESP32-S3 firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: retro-go-esp32s3-launcher
+          path: |
+            launcher/build/*.bin
+            launcher/build/bootloader/*.bin
+            launcher/build/partition_table/*.bin
+            launcher/build/flasher_args.json
+          if-no-files-found: error
+          retention-days: 30
