@@ -43,6 +43,11 @@
     {RG_KEY_SELECT, .num = GPIO_NUM_14, .pullup = 1, .level = 0}, \
 }
 
+#define RG_GAMEPAD_VIRT_MAP { \
+    {RG_KEY_MENU,   .src = RG_KEY_START | RG_KEY_SELECT}, \
+    {RG_KEY_OPTION, .src = RG_KEY_SELECT | RG_KEY_A}, \
+}
+
 // Battery - no battery measurement connected
 #define RG_BATTERY_DRIVER 0
 
