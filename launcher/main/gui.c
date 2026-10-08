@@ -468,9 +468,9 @@ void gui_draw_header(tab_t *tab, int offset)
 
     rg_gui_draw_image(0, offset, LOGO_WIDTH, HEADER_HEIGHT, false, tab->logo);
     if (tab->banner)
-        rg_gui_draw_image(LOGO_WIDTH + 1, offset + 8, 0, HEADER_HEIGHT - 8, false, tab->banner);
+        rg_gui_draw_image(LOGO_WIDTH + 1, offset + 8, gui.width - LOGO_WIDTH - 5, HEADER_HEIGHT - 8, true, tab->banner);
     else
-        rg_gui_draw_text(LOGO_WIDTH + 8, offset + 8, 0, tab->desc, gui.theme->foreground, C_TRANSPARENT, RG_TEXT_BIGGER);
+        rg_gui_draw_text(LOGO_WIDTH + 8, offset + 8, gui.width - LOGO_WIDTH - 12, tab->desc, gui.theme->foreground, C_TRANSPARENT, 0);
 }
 
 void gui_draw_tab_indicator(void)
