@@ -41,5 +41,5 @@ jobs:
         run: |
           source "$HOME/esp-idf/export.sh"
           idf.py --version
-          python3 rg_tool.py --help
+          python3 rg_tool.py build launcher --target esp32-s3-devkit
           echo "Environment check completed!"
