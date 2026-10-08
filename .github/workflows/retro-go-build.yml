@@ -42,4 +42,4 @@ jobs:
           source "$HOME/esp-idf/export.sh"
           idf.py --version
           python3 rg_tool.py build launcher --target esp32-s3-devkit
-          echo "Environment check completed!"
+          echo "ESP32-S3 Retro-Go launcher build completed!"
