@@ -1,0 +1,45 @@
+
+name: Retro-Go ESP32-S3 Environment Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  environment-check:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Retro-Go
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git wget flex bison gperf \
+            python3 python3-pip python3-venv \
+            cmake ninja-build ccache \
+            libffi-dev libssl-dev \
+            libusb-1.0-0 dfu-util
+
+      - name: Download ESP-IDF 4.4.8
+        run: |
+          git clone --depth 1 \
+            --branch v4.4.8 \
+            --recurse-submodules \
+            --shallow-submodules \
+            https://github.com/espressif/esp-idf.git \
+            "$HOME/esp-idf"
+
+      - name: Install ESP32-S3 toolchain
+        run: |
+          "$HOME/esp-idf/install.sh" esp32s3
+
+      - name: Verify environment
+        shell: bash
+        run: |
+          source "$HOME/esp-idf/export.sh"
+          idf.py --version
+          python3 rg_tool.py --help
+          echo "Environment check completed!"
