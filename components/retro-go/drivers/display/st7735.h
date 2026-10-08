@@ -409,7 +409,7 @@ static void lcd_init(void)
     ILI9341_CMD(0x3A, 0x05);
 
     // MADCTL: landscape, MX + MV + BGR
-   ILI9341_CMD(0x36, 0x68);
+   ILI9341_CMD(0x36, 0x60);
 
     // Normal display mode
     ILI9341_CMD(0x13);
