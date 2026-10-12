@@ -9,9 +9,14 @@
 #define RG_STORAGE_SDSPI_HOST SPI3_HOST
 #define RG_STORAGE_SDSPI_SPEED SDMMC_FREQ_DEFAULT
 
-// Audio - no speaker or DAC connected
+// Audio - MAX98357A I2S amplifier
 #define RG_AUDIO_USE_INT_DAC 0
-#define RG_AUDIO_USE_EXT_DAC 0
+#define RG_AUDIO_USE_EXT_DAC 1
+
+// MAX98357A pin connections
+#define RG_GPIO_SND_I2S_BCK  GPIO_NUM_41
+#define RG_GPIO_SND_I2S_WS   GPIO_NUM_42
+#define RG_GPIO_SND_I2S_DATA GPIO_NUM_40
 
 // Video - ST7735 landscape 160x128
 #define RG_SCREEN_DRIVER 2
