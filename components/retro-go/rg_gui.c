@@ -2272,6 +2272,29 @@ int rg_gui_savestate_menu(const char *title, const char *rom_path)
     return slot;
 }
 
+static rg_gui_event_t game_volume_button_cb(rg_gui_option_t *option, rg_gui_event_t event)
+{
+    if (event == RG_DIALOG_ENTER ||
+        event == RG_DIALOG_PREV ||
+        event == RG_DIALOG_NEXT)
+    {
+        int change;
+
+        if (event == RG_DIALOG_PREV)
+            change = -5;
+        else if (event == RG_DIALOG_NEXT)
+            change = 5;
+        else
+            change = (option->arg == 8001) ? -5 : 5;
+
+        rg_audio_set_volume(rg_audio_get_volume() + change);
+        return RG_DIALOG_UPDATE;
+    }
+
+    snprintf(option->value, 32, "%d%%", rg_audio_get_volume());
+    return RG_DIALOG_VOID;
+}
+
 void rg_gui_game_menu(void)
 {
     const char *rom_path = rg_system_get_app()->romPath;
@@ -2279,6 +2302,8 @@ void rg_gui_game_menu(void)
     const rg_gui_option_t choices[] = {
         {1000, _("Save & Continue"), NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {2000, _("Save & Quit"),     NULL, RG_DIALOG_FLAG_NORMAL, NULL},
+        {8001, _("Volume -"),        "-", RG_DIALOG_FLAG_NORMAL, &game_volume_button_cb},
+        {8002, _("Volume +"),        "-", RG_DIALOG_FLAG_NORMAL, &game_volume_button_cb},
         {3001, _("Load game"),       NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         {3000, _("Reset"),           NULL, RG_DIALOG_FLAG_NORMAL, NULL},
         #ifdef RG_ENABLE_NETPLAY
@@ -2294,6 +2319,7 @@ void rg_gui_game_menu(void)
     rg_audio_set_mute(true);
 
     sel = rg_gui_dialog("Retro-Go", choices, 0);
+    rg_settings_commit();
 
     if (sel == 3000)
     {
