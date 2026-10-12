@@ -45,12 +45,13 @@ jobs:
 
           idf.py --version
 
-          echo "Building launcher and retro-core..."
+          echo "Building launcher, retro-core and DOOM..."
           echo "Target: ESP32-S3 N16R8"
           echo "Display: ST7735 160x128"
+          echo "Audio: MAX98357A I2S"
 
           python3 rg_tool.py build-img \
-            launcher retro-core \
+            launcher retro-core prboom-go \
             --target esp32-s3-devkit
 
           echo "Firmware image build finished."
@@ -90,6 +91,8 @@ jobs:
                   Path("launcher/build/launcher.bin"),
               "retro-core.bin":
                   Path("retro-core/build/retro-core.bin"),
+              "prboom-go.bin":
+                  Path("prboom-go/build/prboom-go.bin"),
           }
 
           for name, path in sources.items():
@@ -101,6 +104,7 @@ jobs:
           )
 
           partitions = []
+
           for i in range(95):
               pos = 0x8000 + i * 32
 
@@ -135,6 +139,7 @@ jobs:
               "phy_init",
               "launcher",
               "retro-core",
+              "prboom-go",
           ]
 
           for name in required:
@@ -142,7 +147,7 @@ jobs:
                   f"Missing firmware partition: {name}"
               )
 
-          for name in ("launcher", "retro-core"):
+          for name in ("launcher", "retro-core", "prboom-go"):
               entry = entries[name]
               offset = int(entry["offset"], 16)
 
@@ -167,8 +172,8 @@ jobs:
           for name, source in sources.items():
               shutil.copy2(source, out / name)
 
-          # Extract the REAL partition table from the
-          # complete firmware image, not the dummy table.
+          # Extract the actual partition table
+          # from the complete firmware image.
           (out / "partition-table.bin").write_bytes(
               data[0x8000:0x9000]
           )
@@ -198,6 +203,7 @@ jobs:
           - Actual partition table
           - Launcher
           - Retro-core (including GBC emulation)
+          - PrBoom-Go (DOOM engine)
 
           Other .bin files are included for inspection.
 
@@ -210,7 +216,9 @@ jobs:
 
           ROM files are not included.
           A microSD card is required for game ROMs.
+          For DOOM, place a compatible IWAD in /roms/doom/.
           """
+
           (out / "FLASH_README.txt").write_text(
               "\n".join(
                   line.strip()
@@ -222,13 +230,16 @@ jobs:
           print("Complete image:", image.name)
           print("Image size:", len(data), "bytes")
           print("Partitions:")
+
           for p in partitions:
               print(
                   p["name"],
                   p["offset"],
                   p["size"],
               )
+
           print("Files:")
+
           for path in sorted(out.iterdir()):
               print(" ", path)
           PY
