@@ -1,3 +1,181 @@
+<div align="center">
+
+# ESP32-S3 Retro Gaming Console
+
+### Custom Retro-Go Port · ST7735 TFT · microSD · MAX98357A I2S Audio
+
+**A DIY retro gaming device powered by the ESP32-S3 N16R8, with physical controls, removable game storage, and working speaker audio.**
+
+![ESP32-S3](https://img.shields.io/badge/ESP32--S3-N16R8-111111?style=flat-square&labelColor=000000)
+![Display](https://img.shields.io/badge/Display-ST7735_160x128-111111?style=flat-square&labelColor=000000)
+![Audio](https://img.shields.io/badge/Audio-MAX98357A_I2S-111111?style=flat-square&labelColor=000000)
+![Build](https://img.shields.io/badge/Build-GitHub_Actions-111111?style=flat-square&labelColor=000000)
+![License](https://img.shields.io/badge/License-GPLv2-111111?style=flat-square&labelColor=000000)
+
+*This section documents the custom ESP32-S3 implementation. The original Retro-Go documentation is preserved below.*
+
+</div>
+
+---
+
+## Custom ESP32-S3 Build
+
+This fork adds a custom target for an **ESP32-S3 N16R8** development board, a **1.8-inch ST7735 TFT**, an external **SPI microSD reader**, **eight active-LOW buttons**, and a **MAX98357A I2S amplifier and speaker**. The project was built using GitHub Actions rather than a local ESP-IDF installation.
+
+### Verified project functionality
+
+| Feature | Status |
+|---|---|
+| ESP32-S3 boots custom Retro-Go firmware | ✅ Working |
+| Retro-Go graphical launcher | ✅ Working |
+| ST7735 landscape display (160 × 128) | ✅ Working |
+| Eight physical gaming buttons | ✅ Tested |
+| SPI microSD ROM storage | ✅ Tested |
+| DOOM gameplay (PrBoom-Go) | ✅ Working |
+| MAX98357A I2S speaker audio | ✅ Working — sound confirmed on hardware |
+| PlayStation 1 emulation | Not included in this build |
+| Java / J2ME games | Not included in this build |
+
+**Scope:** These are observations for this custom device, not claims that every emulator listed in the original Retro-Go project has been tested or included in this particular firmware image.
+
+### Hardware
+
+| Component | Specification |
+|---|---|
+| Microcontroller | ESP32-S3 N16R8 |
+| Flash memory | 16 MB |
+| PSRAM | 8 MB |
+| Screen | 1.8-inch ST7735 SPI TFT |
+| Resolution | 160 × 128, landscape |
+| Storage | External SPI microSD module; tested using a 4 GB microSD card |
+| Input | 8 GPIO push buttons with internal pull-ups |
+| Audio | MAX98357A I2S amplifier and connected speaker — working |
+| Firmware | Custom Retro-Go target built with ESP-IDF 4.4.8 |
+
+### Pin assignments
+
+These pin mappings match [`components/retro-go/targets/esp32-s3-devkit/config.h`](components/retro-go/targets/esp32-s3-devkit/config.h) in this fork.
+
+#### ST7735 TFT (SPI2_HOST, 20 MHz)
+
+| Display signal | ESP32-S3 pin |
+|---|---|
+| MOSI / SDA | GPIO 21 |
+| SCK / SCL | GPIO 18 |
+| CS | GPIO 5 |
+| DC / A0 | GPIO 4 |
+| RST / RESET | GPIO 3 |
+| LED / backlight | 3.3 V (always on; not GPIO controlled) |
+| MISO | Not connected |
+
+Screen settings: `RG_SCREEN_DRIVER=2`, `RG_SCREEN_WIDTH=160`, `RG_SCREEN_HEIGHT=128`, `RG_SCREEN_ROTATE=0`, `RG_ST7735_X_OFFSET=0`, `RG_ST7735_Y_OFFSET=0`.
+
+#### SPI microSD module (SPI3_HOST)
+
+| microSD signal | ESP32-S3 pin |
+|---|---|
+| MISO | GPIO 10 |
+| MOSI | GPIO 11 |
+| CLK / SCK | GPIO 12 |
+| CS | GPIO 13 |
+
+The firmware mounts external storage at `/sd`.
+
+#### Eight gaming buttons
+
+| Button | ESP32-S3 pin |
+|---|---|
+| UP | GPIO 6 |
+| DOWN | GPIO 7 |
+| LEFT | GPIO 8 |
+| RIGHT | GPIO 9 |
+| A | GPIO 15 |
+| B | GPIO 16 |
+| START | GPIO 17 |
+| SELECT | GPIO 14 |
+
+Buttons use **active LOW** wiring with internal pull-up resistors. The target maps **START + SELECT** to `MENU`, and **SELECT + A** to `OPTION`.
+
+#### MAX98357A I2S amplifier — tested and working
+
+| MAX98357A signal | ESP32-S3 pin |
+|---|---|
+| BCLK / BCK | GPIO 41 |
+| LRC / WS | GPIO 42 |
+| DIN | GPIO 40 |
+
+The MAX98357A amplifier is **physically connected to a speaker**, and **speaker sound output was confirmed working**. The firmware uses external I2S audio (`RG_AUDIO_USE_EXT_DAC=1`) and disables the internal DAC (`RG_AUDIO_USE_INT_DAC=0`). Power, ground, and speaker terminals must be wired appropriately for the particular MAX98357A module; follow the module's documentation rather than treating signal GPIOs as power pins.
+
+### Firmware and source
+
+- Hardware target: [`esp32-s3-devkit`](components/retro-go/targets/esp32-s3-devkit/)
+- Target configuration: [`config.h`](components/retro-go/targets/esp32-s3-devkit/config.h)
+- Build environment override: [`env.py`](components/retro-go/targets/esp32-s3-devkit/env.py), setting `IDF_TARGET="esp32s3"` and `FW_FORMAT="none"`
+- Cloud build: [`.github/workflows/retro-go-build.yml`](.github/workflows/retro-go-build.yml)
+
+The automated complete-image workflow builds these applications:
+
+| Application | Purpose |
+|---|---|
+| `launcher` | Game launcher and user interface |
+| `retro-core` | Retro emulation application |
+| `prboom-go` | DOOM engine |
+
+The wider Retro-Go source tree contains other emulator applications, but they are **not automatically part of this complete-image build**.
+
+### Build firmware using GitHub Actions
+
+1. Open the repository's **Actions** tab.
+2. Select **Retro-Go ESP32-S3 Complete Firmware**.
+3. Select **Run workflow** on the intended branch.
+4. Once the build succeeds, download the artifact named `retro-go-esp32s3-complete`.
+5. Extract it and locate the **complete `.img` file**. The artifact also contains separate application binaries, a partition table, a manifest, and flashing instructions.
+
+The workflow runs on **Ubuntu 22.04**, installs **ESP-IDF v4.4.8**, and builds for the **ESP32-S3**. The produced full image includes the bootloader, partition table, launcher, Retro-Core and DOOM application partitions.
+
+### Flash the ESP32-S3
+
+Connect the ESP32-S3 to a Windows computer with a USB data cable. From an environment with [esptool](https://github.com/espressif/esptool) installed, flash **the complete generated image at address `0x0`**:
+
+```bash
+python -m esptool --chip esp32s3 --port COM_PORT write_flash --flash_size detect 0x0 firmware.img
+```
+
+Replace `COM_PORT` with the actual serial port (for example, `COM5`) and `firmware.img` with the artifact's **actual image filename**. The syntax may differ across esptool versions; use the version-compatible command when necessary. **Do not flash the separate `.bin` files as though they were the complete image.**
+
+### Add games to microSD
+
+Use a FAT32-formatted microSD card and put **legally obtained** ROM files in the game folders expected by Retro-Go. A typical layout is:
+
+```text
+microSD/
+└── roms/
+    ├── nes/
+    ├── gb/
+    ├── gbc/
+    ├── sms/
+    └── doom/
+        └── <compatible IWAD file>
+```
+
+DOOM requires a compatible **IWAD** in `/roms/doom/`. ROMs and copyrighted game data are **not included** in this repository or build artifact.
+
+### Known limitations and notes
+
+- The TFT is physically 128 × 160 but configured in **landscape 160 × 128** mode.
+- The screen backlight is connected to 3.3 V, so firmware backlight dimming is not configured.
+- No battery-level measurement is configured (`RG_BATTERY_DRIVER=0`).
+- Emulator speed and ROM compatibility depend on the emulator and game. The upstream list below is a **project-wide capability list**, not a list of games verified on this custom hardware.
+- The original Retro-Go documentation below also describes ODROID-GO-specific installation and audio hardware; those procedures **do not apply** to this ESP32-S3 device unless explicitly stated.
+
+### Original project and attribution
+
+This is a **custom hardware port/fork of [Retro-Go by Alex Duchesne (ducalex)](https://github.com/ducalex/retro-go)**, not a replacement for the original project. The original documentation, acknowledgements and license details are retained below. Please credit and comply with the upstream licenses when distributing modified firmware.
+
+---
+
+# Original Retro-Go Documentation
+
 # Table of contents
 - [Description](#description)
 - [Installation](#installation)
@@ -85,7 +263,7 @@ Some emulators support loading a BIOS. The files should be placed as follows:
 
 
 ## Game & Watch
-The roms must be packed with [LCD-Game-Shrinker](https://github.com/bzhxx/LCD-Game-Shrinker) and a tutorial can be [found here](https://gist.github.com/DNA64/16fed499d6bd4664b78b4c0a9638e4ef).
+The roms must be packed with [LCD-Game-Shrinker](https://github.com/bzhxx/LCD-Game-Shrinker) and a tutorial can be [found here](https://gist.github.com/DNA64/16fed499d6bd4c0a9638e4ef).
 
 
 ## Wifi
@@ -156,8 +334,8 @@ In Retro-Go, save states will provide you with the best and most reliable save e
 read on if you need or want SRAM saves. The SRAM format is compatible with VisualBoyAdvance so it may be used to
 import or export saves.
 
-You can configure automatic SRAM saving in the options menu. A longer delay will reduce stuttering at the cost
-of losing data when powering down too quickly. Also note that when *resuming* a game, Retro-Go will give priority
+You can configure automatic SRAM saving in the options menu. A longer delay will reduce stuttering at the cost of
+losing data when powering down too quickly. Also note that when *resuming* a game, Retro-Go will give priority
 to a save state if present.
 
 ### ZIP files
